@@ -1,0 +1,12 @@
+node_modules/
+dist/
+
+# User-specific secret config — each user creates their own from config.example.ts
+src/config.ts
+
+# Editor / OS noise
+.DS_Store
+*.log
+.vscode/
+.idea/
+/plan.md

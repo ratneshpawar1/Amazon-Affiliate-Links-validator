@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "YT Amazon Affiliate Link Auditor",
+  "version": "0.1.0",
+  "description": "Audits Amazon affiliate links across your YouTube channel and reports which are dead, hijacked, or losing commission.",
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_popup": "popup.html", "default_title": "Affiliate Link Auditor" },
+  "permissions": [
+    "identity",
+    "storage",
+    "alarms",
+    "offscreen",
+    "tabs",
+    "scripting",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*",
+    "https://oauth2.googleapis.com/*",
+    "https://api.anthropic.com/*",
+    "https://webservices.amazon.com/*",
+    "https://webservices.amazon.co.uk/*",
+    "https://webservices.amazon.de/*",
+    "https://webservices.amazon.ca/*",
+    "https://webservices.amazon.in/*",
+    "https://webservices.amazon.fr/*",
+    "https://webservices.amazon.it/*",
+    "https://webservices.amazon.es/*",
+    "https://webservices.amazon.com.au/*",
+    "https://webservices.amazon.co.jp/*",
+    "https://*.amazon.com/*",
+    "https://*.amazon.co.uk/*",
+    "https://*.amazon.de/*",
+    "https://*.amazon.ca/*",
+    "https://*.amazon.in/*",
+    "https://*.amazon.fr/*",
+    "https://*.amazon.it/*",
+    "https://*.amazon.es/*",
+    "https://*.amazon.com.au/*",
+    "https://*.amazon.co.jp/*",
+    "https://amzn.to/*",
+    "https://a.co/*",
+    "https://amzn.eu/*",
+    "https://amzn.asia/*"
+  ],
+  "oauth2": {
+    "client_id": "__OAUTH_CLIENT_ID__",
+    "scopes": ["https://www.googleapis.com/auth/youtube.readonly"]
+  }
+}

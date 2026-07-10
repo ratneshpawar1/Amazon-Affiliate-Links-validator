@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Affiliate Link Auditor</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        font: 13px/1.45 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+        width: 320px; margin: 0; padding: 14px;
+      }
+      h1 { font-size: 15px; margin: 0 0 10px; }
+      .row { margin: 8px 0; }
+      button {
+        font: inherit; padding: 7px 12px; border-radius: 8px;
+        border: 1px solid rgba(128,128,128,.4); background: #2563eb; color: #fff;
+        cursor: pointer;
+      }
+      button.secondary { background: transparent; color: inherit; }
+      button:disabled { opacity: .5; cursor: default; }
+      .muted { opacity: .7; }
+      .err { color: #b91c1c; }
+      .pill { display: inline-block; padding: 2px 8px; border-radius: 999px;
+        background: rgba(128,128,128,.2); font-size: 11px; }
+      .stack > * + * { margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
