@@ -2,7 +2,7 @@
 // Owns all state transitions. Nothing in SW memory is authoritative — per-channel
 // queues/cursors live in storage and a 1-min alarm re-drives work after any kill.
 
-import { signInInteractive, getSilent, revokeToken, isConfigured } from "./lib/auth";
+import { getSilent, revokeToken } from "./lib/auth";
 import { getMyChannel } from "./lib/youtube";
 import {
   channelStore,
@@ -203,25 +203,19 @@ chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
       case "GET_STATE":
         return buildAppState();
 
-      case "ADD_CHANNEL": {
-        if (!isConfigured()) {
-          return {
-            ok: false,
-            error: "Your Google Client ID isn't set — see SETUP.md step 3.",
-          } as AddChannelResult;
-        }
+      case "REGISTER_CHANNEL": {
+        // The UI already ran the interactive flow; finish with the token here.
         try {
-          const tr = await signInInteractive();
-          const channel = await getMyChannel({ getToken: async () => tr.accessToken });
+          const channel = await getMyChannel({ getToken: async () => req.accessToken });
           await setChannelToken(channel.channelId, {
-            accessToken: tr.accessToken,
-            expiresAt: tr.expiresAt,
+            accessToken: req.accessToken,
+            expiresAt: req.expiresAt,
           });
           await upsertChannel({
             channelId: channel.channelId,
             title: channel.title,
             addedAt: new Date().toISOString(),
-            loginHint: tr.email,
+            loginHint: req.email,
             needsReauth: false,
           });
           const store = channelStore(channel.channelId);

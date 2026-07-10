@@ -3,7 +3,7 @@
 import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { sendMessage } from "../lib/messages";
-import type { AppState, AddChannelResult } from "../lib/messages";
+import type { AppState } from "../lib/messages";
 import type { JobState } from "../lib/types";
 import { isConfigured } from "../lib/auth";
 
@@ -38,12 +38,11 @@ function App() {
     return () => chrome.runtime.onMessage.removeListener(onMsg);
   }, []);
 
-  async function addChannel() {
-    setBusy(true); setError("");
-    const res = await sendMessage<AddChannelResult>({ type: "ADD_CHANNEL" });
-    setBusy(false);
-    if (!res.ok) setError(res.error ?? "Couldn't add channel.");
-    else refresh();
+  // Adding a channel needs the Google picker, which closes this popup on blur —
+  // so we open the dashboard and add it there instead.
+  function addChannel() {
+    sendMessage({ type: "OPEN_DASHBOARD" });
+    window.close();
   }
   async function start() {
     setBusy(true); setError("");

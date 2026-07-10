@@ -12,6 +12,7 @@ import {
   buildOccurrenceRows, tagIsOk, type OccurrenceRow, type DisplayStatus,
 } from "../lib/report";
 import { tagOf, SHORT_HOSTS } from "../lib/extract";
+import { signInInteractive, getRedirectUrl } from "../lib/auth";
 import {
   correctDescription, chooseOwnerTag, type CorrectionOccurrence, type CorrectionResult,
 } from "../lib/correct";
@@ -32,15 +33,10 @@ const emptyCounts = (): Record<DisplayStatus, number> => ({
 });
 
 // ── Top bar with channel switcher ───────────────────────────────────────────
-function TopBar({ state, onChange }: { state: AppState; onChange: () => void }) {
-  const [busy, setBusy] = useState(false);
+function TopBar({ state, onChange, onAdd, adding }: {
+  state: AppState; onChange: () => void; onAdd: () => void; adding: boolean;
+}) {
   const active = state.channels.find((c) => c.channelId === state.activeChannelId);
-
-  async function add() {
-    setBusy(true);
-    await sendMessage<AddChannelResult>({ type: "ADD_CHANNEL" });
-    setBusy(false); onChange();
-  }
   async function switchTo(id: string) {
     await sendMessage({ type: "SWITCH_CHANNEL", channelId: id }); onChange();
   }
@@ -49,7 +45,6 @@ function TopBar({ state, onChange }: { state: AppState; onChange: () => void }) 
     if (!confirm(`Remove "${active.title}" and its audit data?`)) return;
     await sendMessage({ type: "REMOVE_CHANNEL", channelId: active.channelId }); onChange();
   }
-
   return (
     <div class="topbar">
       <div class="logo">🔗 Affiliate Link Auditor</div>
@@ -61,7 +56,7 @@ function TopBar({ state, onChange }: { state: AppState; onChange: () => void }) 
             onChange={(e) => switchTo((e.target as HTMLSelectElement).value)}>
             {state.channels.map((c) => <option value={c.channelId}>{c.title}</option>)}
           </select>
-          <button class="btn ghost" disabled={busy} onClick={add}>+ Channel</button>
+          <button class="btn ghost" disabled={adding} onClick={onAdd}>{adding ? "Connecting…" : "+ Channel"}</button>
           <button class="btn ghost" onClick={remove}>Remove</button>
         </div>
       )}
@@ -344,6 +339,8 @@ function App() {
   const [suggestions, setSuggestions] = useState<Record<string, ReplacementSuggestion>>({});
   const [suggesting, setSuggesting] = useState<Set<string>>(new Set());
   const [aiError, setAiError] = useState("");
+  const [addError, setAddError] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const refreshState = async () => setState(await sendMessage<AppState>({ type: "GET_STATE" }));
   const refreshReport = async () => setPayload(await sendMessage<ReportPayload>({ type: "GET_REPORT" }));
@@ -394,6 +391,23 @@ function App() {
     if (!confirm("Clear this channel's audit results? Settings are kept.")) return;
     await sendMessage({ type: "RESET_AUDIT" }); refreshState(); refreshReport();
   }
+  // Interactive auth MUST run here (real user gesture, persistent page) — not in
+  // the popup (which closes) or the service worker (which loses the gesture).
+  async function addChannel() {
+    setAddError(""); setAdding(true);
+    try {
+      const tr = await signInInteractive();
+      const res = await sendMessage<AddChannelResult>({
+        type: "REGISTER_CHANNEL", accessToken: tr.accessToken, expiresAt: tr.expiresAt, email: tr.email,
+      });
+      if (!res.ok) setAddError(res.error ?? "Couldn't add channel.");
+      else await refreshState();
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAdding(false);
+    }
+  }
   async function onSuggest(asin: string) {
     setAiError("");
     setSuggesting((s) => new Set(s).add(asin));
@@ -408,13 +422,20 @@ function App() {
   // No channels yet.
   if (state.channels.length === 0) {
     return (<>
-      <TopBar state={state} onChange={refreshState} />
+      <TopBar state={state} onChange={refreshState} onAdd={addChannel} adding={adding} />
       <div class="container">
         <div class="card hero">
           <h2>Add your YouTube channel</h2>
-          <p class="sub">Sign in with Google (read-only) to get started. You can add more channels later.</p>
-          <button class="btn primary lg" onClick={() => sendMessage({ type: "ADD_CHANNEL" }).then(refreshState)}>Add channel</button>
+          <p class="sub">Sign in with Google (read-only) to get started. Pick the channel you want in Google's picker. You can add more channels later.</p>
+          <button class="btn primary lg" disabled={adding} onClick={addChannel}>{adding ? "Connecting…" : "Add channel"}</button>
         </div>
+        {addError && (
+          <div class="banner error"><span class="ic">⚠</span><span>{addError}</span></div>
+        )}
+        <p class="small muted" style="text-align:center;margin-top:8px">
+          Google redirect URL (must be registered in your OAuth client):<br />
+          <code>{getRedirectUrl()}</code>
+        </p>
       </div>
     </>);
   }
@@ -425,11 +446,12 @@ function App() {
 
   return (
     <>
-      <TopBar state={state} onChange={refreshState} />
+      <TopBar state={state} onChange={refreshState} onAdd={addChannel} adding={adding} />
       <div class="container">
         {activeChannel?.needsReauth && (
           <div class="banner warn"><span class="ic">⚠</span><span>This channel needs reconnecting — click <b>+ Channel</b> and pick it again.</span></div>
         )}
+        {addError && <div class="banner error"><span class="ic">⚠</span><span>{addError}</span></div>}
         {job?.commentAccessNote && <div class="banner info"><span class="ic">ℹ</span><span>{job.commentAccessNote}</span></div>}
         {job?.lastError && <div class="banner error"><span class="ic">⚠</span><span>{job.lastError}</span></div>}
         {aiError && <div class="banner error"><span class="ic">⚠</span><span>{aiError}</span></div>}

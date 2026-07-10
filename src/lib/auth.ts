@@ -83,13 +83,26 @@ function parseRedirect(redirectUrl: string): TokenResult {
   };
 }
 
+/** The redirect URL that must be registered in the Google OAuth client. */
+export function getRedirectUrl(): string {
+  return chrome.identity.getRedirectURL();
+}
+
 async function launch(interactive: boolean, url: string): Promise<string> {
   try {
     const redirect = await chrome.identity.launchWebAuthFlow({ url, interactive });
     if (!redirect) throw new AuthError("Sign-in was cancelled.");
     return redirect;
   } catch (e) {
-    throw new AuthError(e instanceof Error ? e.message : "Sign-in failed.");
+    const raw = e instanceof Error ? e.message : "Sign-in failed.";
+    // Map Chrome's terse messages to something actionable.
+    if (/could not be loaded|redirect|mismatch/i.test(raw)) {
+      throw new AuthError(
+        `${raw} — check that your Google OAuth client is a "Web application" and ` +
+          `has this exact Authorized redirect URI: ${getRedirectUrl()}`
+      );
+    }
+    throw new AuthError(raw);
   }
 }
 

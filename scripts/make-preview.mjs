@@ -20,14 +20,8 @@ const job = {
   updatedAt: new Date().toISOString(),
 };
 
-const appState = {
-  channels: [
-    { channelId: "UC_main", title: "ratnesh pawar", addedAt: "" },
-    { channelId: "UC_second", title: "Tech Reviews 2", addedAt: "" },
-  ],
-  activeChannelId: "UC_main",
-  job,
-};
+// Start with NO channels to show the add-channel flow + redirect-URL helper.
+const appState = { channels: [], activeChannelId: undefined, job: null };
 
 const payload = {
   videos: [
@@ -75,7 +69,14 @@ const STATE = ${JSON.stringify(appState)};
 const PAYLOAD = ${JSON.stringify(payload)};
 const KEYS = ${JSON.stringify(apiKeys)};
 const SUGGESTION = ${JSON.stringify(cannedSuggestion)};
+const JOB = ${JSON.stringify(job)};
 window.chrome = {
+  identity: {
+    getRedirectURL: () => "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/",
+    // Simulate a successful interactive sign-in.
+    launchWebAuthFlow: async () =>
+      "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/#access_token=FAKE&expires_in=3600&token_type=Bearer",
+  },
   runtime: {
     sendMessage: async (m) => {
       switch (m.type) {
@@ -83,9 +84,14 @@ window.chrome = {
         case "GET_REPORT": return PAYLOAD;
         case "GET_API_KEYS": return KEYS;
         case "SET_API_KEYS": Object.assign(KEYS, m.keys); return { ok: true };
-        case "UPDATE_SETTINGS": Object.assign(STATE.job.settings, m.settings); return { ok: true };
+        case "UPDATE_SETTINGS": if (STATE.job) Object.assign(STATE.job.settings, m.keys ?? m.settings); return { ok: true };
         case "SUGGEST_REPLACEMENTS": return { ok: true, suggestion: SUGGESTION };
         case "SWITCH_CHANNEL": STATE.activeChannelId = m.channelId; return { ok: true };
+        case "REGISTER_CHANNEL":
+          STATE.channels = [{ channelId: "UC_main", title: "ratnesh pawar", addedAt: "" }];
+          STATE.activeChannelId = "UC_main";
+          STATE.job = JOB;
+          return { ok: true, channel: STATE.channels[0] };
         default: return { ok: true };
       }
     },

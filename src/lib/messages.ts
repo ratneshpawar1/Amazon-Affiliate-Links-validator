@@ -23,7 +23,9 @@ export interface AppState {
 // ── UI → background (request/response) ──────────────────────────────────────
 export type UiRequest =
   | { type: "GET_STATE" }
-  | { type: "ADD_CHANNEL" }
+  // Interactive auth runs in the UI (a real user gesture, persistent page);
+  // the resulting token is handed to the background to finish registration.
+  | { type: "REGISTER_CHANNEL"; accessToken: string; expiresAt: number; email?: string }
   | { type: "SWITCH_CHANNEL"; channelId: string }
   | { type: "REMOVE_CHANNEL"; channelId: string }
   | { type: "START_AUDIT" }
