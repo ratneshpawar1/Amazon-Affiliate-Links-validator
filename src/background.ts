@@ -96,29 +96,44 @@ async function driveChannel(channelId: string): Promise<void> {
   try {
     const store = channelStore(channelId);
     const deps = tokenDeps(channelId);
+    const job = await store.getJob();
+    if (!job) return;
 
-    let job = await store.getJob();
-    if (job?.phase === "ingest") {
-      await runIngest(store, deps);
+    if (job.phase === "ingest") {
+      const status = await runIngest(store, deps); // complete | batch | parked
+      await runExtract(store); // refresh links + tag view (no liveness check)
       await broadcast();
+      const after = await store.getJob();
+      // If ingest quota-parked itself, leave that park alone.
+      if (after && after.phase !== "parked") {
+        await store.mutateJob((j) => {
+          j.phase = "parked";
+          j.awaitingApproval = true;
+          if (status === "batch") {
+            j.gate = "ingest";
+            j.parkedReason = `Read ${j.stats.videos} videos so far — tag issues are shown below. Approve the next batch to read more, or start checking links.`;
+          } else {
+            j.gate = "check";
+            j.parkedReason = `All ${j.stats.videos} videos read; ${j.stats.links} links found. Tag issues are shown below. Start checking links for dead/removed products?`;
+          }
+        });
+        await broadcast();
+      }
+      return;
     }
-    job = await store.getJob();
-    if (job?.phase === "extract") {
-      await runExtract(store);
-      await broadcast();
-    }
-    // Check loop (paced, single-flight).
-    for (;;) {
-      job = await store.getJob();
-      if (!job || job.phase !== "check") break;
-      const r = await processNextCheck(store);
-      await broadcast();
-      if (r.parked || r.done) break;
-      await sleep(nextPaceMs(job.settings));
+
+    if (job.phase === "check") {
+      for (;;) {
+        const j = await store.getJob();
+        if (!j || j.phase !== "check") break;
+        const r = await processNextCheck(store);
+        await broadcast();
+        if (r.parked || r.done || r.batchPaused) break;
+        await sleep(nextPaceMs(j.settings));
+      }
     }
   } catch (e) {
-    const id = channelId;
-    await channelStore(id).mutateJob((j) => {
+    await channelStore(channelId).mutateJob((j) => {
       j.lastError = e instanceof Error ? e.message : String(e);
     });
     await broadcast();
@@ -134,6 +149,7 @@ async function driveAnyPending(): Promise<void> {
   for (const c of channels) {
     const job = await channelStore(c.channelId).getJob();
     if (!job) continue;
+    if (job.awaitingApproval) continue; // manual batch gate — never auto-resume
     if (job.phase === "ingest" || job.phase === "extract" || job.phase === "check") {
       driveChannel(c.channelId);
       return;
@@ -261,11 +277,68 @@ chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
           j.phase = "ingest";
           j.parkedUntil = undefined;
           j.parkedReason = undefined;
+          j.awaitingApproval = false;
+          j.gate = undefined;
           j.consecutiveBlocks = 0;
+          j.videosThisBatch = 0;
+          j.checksThisBatch = 0;
           j.lastError = undefined;
         });
         await broadcast();
         driveChannel(store.channelId);
+        return { ok: true } as AckResult;
+      }
+
+      case "APPROVE_NEXT_BATCH": {
+        const store = await activeStore();
+        if (store) {
+          await store.mutateJob((j) => {
+            if (!j.awaitingApproval) return;
+            if (j.gate === "ingest") {
+              j.videosThisBatch = 0;
+              j.phase = "ingest";
+            } else {
+              j.checksThisBatch = 0;
+              j.phase = "check";
+            }
+            j.awaitingApproval = false;
+            j.gate = undefined;
+            j.parkedReason = undefined;
+          });
+          await broadcast();
+          driveChannel(store.channelId);
+        }
+        return { ok: true } as AckResult;
+      }
+
+      case "BEGIN_CHECKS": {
+        const store = await activeStore();
+        if (store) {
+          await store.mutateJob((j) => {
+            j.checksThisBatch = 0;
+            j.phase = "check";
+            j.awaitingApproval = false;
+            j.gate = undefined;
+            j.parkedReason = undefined;
+          });
+          await broadcast();
+          driveChannel(store.channelId);
+        }
+        return { ok: true } as AckResult;
+      }
+
+      case "STOP_AUDIT": {
+        const store = await activeStore();
+        if (store) {
+          await store.mutateJob((j) => {
+            j.phase = "done";
+            j.awaitingApproval = false;
+            j.gate = undefined;
+            j.parkedUntil = undefined;
+            j.parkedReason = undefined;
+          });
+          await broadcast();
+        }
         return { ok: true } as AckResult;
       }
 

@@ -95,6 +95,8 @@ export interface Settings {
   paceMaxMs: number; // default 20000
   marketplaces: string[]; // e.g. ["amazon.com"]
   tabsOnly: boolean; // "stealthiest" mode — skip fetch fast path (open question #2)
+  videoLimitPerBatch: number; // read this many videos, then wait for approval (0 = all)
+  checkLimitPerBatch: number; // check this many Amazon links, then wait (0 = all)
 }
 
 export interface JobStats {
@@ -110,6 +112,10 @@ export interface JobState {
   checkQueue: string[]; // ASINs pending
   parkedUntil?: string; // quota / manual pause / block-cooloff (ISO)
   parkedReason?: string; // human-readable reason for the current park
+  awaitingApproval?: boolean; // parked at a batch gate, waiting for the user
+  gate?: "ingest" | "check"; // what "Approve next batch" will do
+  videosThisBatch: number; // videos read since the last approval/start
+  checksThisBatch: number; // links checked since the last approval/start
   channelTitle?: string;
   channelId?: string;
   uploadsPlaylistId?: string;

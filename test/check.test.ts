@@ -85,6 +85,26 @@ describe("checker queue runner (plan §M4 resumability)", () => {
     expect((await store.getJob())!.consecutiveBlocks).toBe(0);
   });
 
+  it("parks at the per-batch check cap and can resume from the queue", async () => {
+    const job = newJobState({ checkLimitPerBatch: 2 });
+    job.phase = "check";
+    job.checkQueue = ["A1", "A2", "A3"];
+    job.stats.links = 3;
+    await store.saveJob(job);
+    for (const a of ["A1", "A2", "A3"]) await store.putLink(link(a));
+    const runCheck = async (asin: string) => outcome("ok", asin);
+
+    await processNextCheck(store, { runCheck, now: () => 0 }); // A1
+    const r2 = await processNextCheck(store, { runCheck, now: () => 0 }); // A2 → cap
+    expect(r2.batchPaused).toBe(true);
+    const j = await store.getJob();
+    expect(j!.phase).toBe("parked");
+    expect(j!.awaitingApproval).toBe(true);
+    expect(j!.gate).toBe("check");
+    expect(j!.checkQueue).toEqual(["A3"]);
+    expect(j!.checksThisBatch).toBe(2);
+  });
+
   it("isolates channels: A's audit does not touch B's data", async () => {
     const a = channelStore("UC_a");
     const b = channelStore("UC_b");

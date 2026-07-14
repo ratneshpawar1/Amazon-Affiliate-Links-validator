@@ -63,4 +63,14 @@ describe("buildOccurrenceRows — per-occurrence tag correctness", () => {
     expect(byTag["(none)"]).toBe("tag_missing_or_wrong");
     expect(byTag["someone-else-20"]).toBe("tag_missing_or_wrong");
   });
+
+  it("flags a bad tag instantly even with NO Amazon check (pending)", () => {
+    const p = payload();
+    p.results = []; // nothing checked yet — no Amazon contact
+    const rows = buildOccurrenceRows(p, ["chan-20"]);
+    const byTag = Object.fromEntries(rows.map((r) => [r.tag || "(none)", r.status]));
+    expect(byTag["chan-20"]).toBe("pending"); // good tag, liveness unknown
+    expect(byTag["(none)"]).toBe("tag_missing_or_wrong");
+    expect(byTag["someone-else-20"]).toBe("tag_missing_or_wrong");
+  });
 });

@@ -60,9 +60,13 @@ export async function runExtract(store: ChannelStore, deps: ExtractDeps = {}): P
     if (!(await store.getResult(link.asin))) queue.push(link.asin);
   }
 
+  // NB: we do NOT advance to "check" here. Tag results are already derivable
+  // from the links (no Amazon needed); the background sets a gate so liveness
+  // checking is opt-in and batched.
   await store.mutateJob((job) => {
     job.stats.links = links.length;
-    job.checkQueue = queue;
-    job.phase = "check";
+    // Merge: keep any ASINs already queued, add newly-found unchecked ones.
+    const have = new Set(job.checkQueue);
+    for (const a of queue) if (!have.has(a)) job.checkQueue.push(a);
   });
 }

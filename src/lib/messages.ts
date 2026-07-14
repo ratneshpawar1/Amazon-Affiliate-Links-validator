@@ -31,6 +31,9 @@ export type UiRequest =
   | { type: "START_AUDIT" }
   | { type: "PAUSE_AUDIT" }
   | { type: "RESUME_AUDIT" }
+  | { type: "APPROVE_NEXT_BATCH" } // continue the gated batch (ingest or check)
+  | { type: "BEGIN_CHECKS" } // from an ingest gate: start checking links now
+  | { type: "STOP_AUDIT" } // stop for good, keep whatever results we have
   | { type: "RESET_AUDIT" }
   | { type: "UPDATE_SETTINGS"; settings: Partial<Settings> }
   | { type: "OPEN_DASHBOARD" }

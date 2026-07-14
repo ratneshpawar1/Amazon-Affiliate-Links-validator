@@ -40,6 +40,8 @@ export const DEFAULT_SETTINGS: Settings = {
   paceMaxMs: 20000,
   marketplaces: ["amazon.com"],
   tabsOnly: false,
+  videoLimitPerBatch: 500,
+  checkLimitPerBatch: 500,
 };
 
 export function newJobState(settings: Partial<Settings> = {}): JobState {
@@ -47,6 +49,8 @@ export function newJobState(settings: Partial<Settings> = {}): JobState {
     phase: "idle",
     checkQueue: [],
     consecutiveBlocks: 0,
+    videosThisBatch: 0,
+    checksThisBatch: 0,
     settings: { ...DEFAULT_SETTINGS, ...settings },
     stats: { videos: 0, links: 0, checked: 0, byStatus: emptyByStatus() },
     updatedAt: new Date().toISOString(),

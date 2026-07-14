@@ -98,46 +98,121 @@ function TagSetup({ settings, prominent }: { settings: Settings; prominent: bool
 }
 
 // ── Run card ─────────────────────────────────────────────────────────────────
+type RunAction =
+  | "START_AUDIT" | "PAUSE_AUDIT" | "RESUME_AUDIT"
+  | "APPROVE_NEXT_BATCH" | "BEGIN_CHECKS" | "STOP_AUDIT";
+
+function fmtEta(ms: number): string {
+  const m = Math.max(1, Math.round(ms / 60000));
+  if (m < 60) return `~${m} min`;
+  const h = Math.floor(m / 60);
+  return `~${h}h ${m % 60}m`;
+}
+
+function BatchInputs({ settings }: { settings: Settings }) {
+  const [v, setV] = useState(settings.videoLimitPerBatch);
+  const [c, setC] = useState(settings.checkLimitPerBatch);
+  const save = (patch: Partial<Settings>) =>
+    sendMessage({ type: "UPDATE_SETTINGS", settings: patch });
+  return (
+    <div class="rowflex" style="justify-content:center; margin:6px 0 14px">
+      <div class="field"><label>Videos per batch (0 = all)</label>
+        <input type="number" value={v} style="min-width:120px"
+          onInput={(e) => { const n = Number((e.target as HTMLInputElement).value); setV(n); save({ videoLimitPerBatch: n }); }} /></div>
+      <div class="field"><label>Links checked per batch (0 = all)</label>
+        <input type="number" value={c} style="min-width:120px"
+          onInput={(e) => { const n = Number((e.target as HTMLInputElement).value); setC(n); save({ checkLimitPerBatch: n }); }} /></div>
+    </div>
+  );
+}
+
 function RunCard({ job, onChange }: { job: JobState; onChange: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  async function act(type: "START_AUDIT" | "PAUSE_AUDIT" | "RESUME_AUDIT") {
+  async function act(type: RunAction) {
     setBusy(true); setErr("");
     const res = await sendMessage<AckResult>({ type });
     setBusy(false);
     if (!res.ok) setErr(res.error ?? "Something went wrong.");
     onChange();
   }
-  const { phase, stats } = job;
+  const { phase, stats, settings } = job;
   const pct = stats.links > 0 ? Math.round((stats.checked / stats.links) * 100) : 0;
-  const estMin = stats.links ? Math.max(1, Math.round((stats.links * 14) / 60)) : 0;
+  const remaining = job.checkQueue.length;
+  const avgPace = (settings.paceMinMs + settings.paceMaxMs) / 2;
+  const eta = fmtEta(remaining * avgPace);
+  const nextBatch = settings.checkLimitPerBatch > 0 ? Math.min(remaining, settings.checkLimitPerBatch) : remaining;
+
   return (
     <div class="card hero">
       {phase === "idle" && (<>
         <h2>Ready to audit this channel</h2>
-        <p class="sub">We'll read every video, find your Amazon links, and check each one. Checks run gently (~8–20s apart) to avoid Amazon's robot checks.</p>
+        <p class="sub">Tag problems show instantly (no Amazon contact). Checking links for dead/removed products is optional and runs in approved batches.</p>
+        <BatchInputs settings={settings} />
         <button class="btn primary lg" disabled={busy} onClick={() => act("START_AUDIT")}>Run audit</button>
       </>)}
+
       {phase === "ingest" && (<>
-        <h2>Reading your channel…</h2><p class="sub">{stats.videos} videos so far.</p>
+        <h2>Reading your channel…</h2><p class="sub">{stats.videos} videos read.</p>
         <div class="progress indet"><i /></div>
-        <button class="btn" disabled={busy} onClick={() => act("PAUSE_AUDIT")}>Pause</button>
+        <div class="rowflex" style="justify-content:center">
+          <button class="btn" disabled={busy} onClick={() => act("PAUSE_AUDIT")}>Pause</button>
+          <button class="btn ghost" disabled={busy} onClick={() => act("STOP_AUDIT")}>Stop</button>
+        </div>
       </>)}
+
       {phase === "extract" && (<><h2>Finding Amazon links…</h2><div class="progress indet"><i /></div></>)}
+
       {phase === "check" && (<>
         <h2>Checking links… {stats.checked} / {stats.links}</h2>
-        <p class="sub">About {estMin} min total — you can close this tab, it keeps going.</p>
+        <p class="sub">{remaining} left · {eta} remaining at current pace. You can close this tab — it keeps going.</p>
         <div class="progress"><i style={`width:${pct}%`} /></div>
-        <button class="btn" disabled={busy} onClick={() => act("PAUSE_AUDIT")}>Pause</button>
+        <div class="rowflex" style="justify-content:center">
+          <button class="btn" disabled={busy} onClick={() => act("PAUSE_AUDIT")}>Pause</button>
+          <button class="btn ghost" disabled={busy} onClick={() => act("STOP_AUDIT")}>Stop &amp; show results</button>
+        </div>
       </>)}
-      {phase === "parked" && (<>
+
+      {phase === "parked" && job.awaitingApproval && (<>
+        <h2>{job.gate === "ingest" ? "Batch read ✓" : "Batch checked ✓"}</h2>
+        <p class="sub">{job.parkedReason}</p>
+        {job.gate === "check" && remaining > 0 && (
+          <p class="small muted">Next batch: up to {nextBatch} links · {eta} for all {remaining} remaining.</p>
+        )}
+        <div class="rowflex" style="justify-content:center">
+          {remaining > 0 && (
+            <button class="btn primary" disabled={busy} onClick={() => act("APPROVE_NEXT_BATCH")}>
+              Approve next {nextBatch} {job.gate === "ingest" ? "videos" : "checks"}
+            </button>
+          )}
+          {job.gate === "ingest" && (
+            <button class="btn" disabled={busy} onClick={() => act("BEGIN_CHECKS")}>Start checking links now</button>
+          )}
+          <button class="btn ghost" disabled={busy} onClick={() => act("STOP_AUDIT")}>Stop &amp; show results</button>
+        </div>
+      </>)}
+
+      {phase === "parked" && !job.awaitingApproval && (<>
         <h2>Paused</h2><p class="sub">{job.parkedReason ?? "The audit is paused."}</p>
-        <button class="btn primary" disabled={busy} onClick={() => act("RESUME_AUDIT")}>Resume</button>
+        <div class="rowflex" style="justify-content:center">
+          <button class="btn primary" disabled={busy} onClick={() => act("RESUME_AUDIT")}>Resume</button>
+          <button class="btn ghost" disabled={busy} onClick={() => act("STOP_AUDIT")}>Stop &amp; show results</button>
+        </div>
       </>)}
+
       {phase === "done" && (<>
-        <h2>Audit complete ✓</h2><p class="sub">Checked {stats.checked} links across {stats.videos} videos.</p>
-        <button class="btn" disabled={busy} onClick={() => act("START_AUDIT")}>Run again</button>
+        <h2>{remaining > 0 ? "Stopped" : "Audit complete ✓"}</h2>
+        <p class="sub">
+          Checked {stats.checked} of {stats.links} links{remaining > 0 ? ` — ${remaining} not yet checked` : ""}.
+        </p>
+        <div class="rowflex" style="justify-content:center">
+          {remaining > 0 && (
+            <button class="btn primary" disabled={busy} onClick={() => act("BEGIN_CHECKS")}>Check remaining {remaining}</button>
+          )}
+          <button class="btn" disabled={busy} onClick={() => act("START_AUDIT")}>Run again</button>
+        </div>
       </>)}
+
       {err && <div class="banner error" style="margin-top:14px"><span class="ic">⚠</span><span>{err}</span></div>}
     </div>
   );

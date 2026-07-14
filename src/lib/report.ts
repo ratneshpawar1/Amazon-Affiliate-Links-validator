@@ -32,14 +32,18 @@ export function tagIsOk(tag: string | undefined, ownerTags: string[]): boolean {
 }
 
 /**
- * Per-occurrence status: a live ASIN (`ok`) is downgraded to
- * `tag_missing_or_wrong` for any occurrence whose own tag is wrong/missing.
+ * Per-occurrence status. Tag correctness is known from the URL alone (no Amazon
+ * needed), so a wrong/missing tag surfaces immediately — both for a confirmed-
+ * live ASIN (`ok`) AND for an as-yet-unchecked one (`pending`). A pending link
+ * with a correct tag stays `pending` until the liveness check runs.
  */
 export function occurrenceStatus(
   asinStatus: DisplayStatus,
   tagOk: boolean
 ): DisplayStatus {
-  if (asinStatus === "ok" && !tagOk) return "tag_missing_or_wrong";
+  if ((asinStatus === "ok" || asinStatus === "pending") && !tagOk) {
+    return "tag_missing_or_wrong";
+  }
   return asinStatus;
 }
 

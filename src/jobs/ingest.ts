@@ -18,7 +18,10 @@ import { nextMidnightPacificISO } from "../lib/time";
 export interface StepResult {
   more: boolean;
   parked: boolean;
+  batch?: boolean; // hit the per-batch video cap; awaiting approval
 }
+
+export type IngestStatus = "complete" | "batch" | "parked";
 
 /** Ensure the uploads playlist is known and the cursor is initialised. */
 export async function beginIngest(store: ChannelStore, deps?: YoutubeDeps): Promise<void> {
@@ -57,6 +60,16 @@ export async function stepIngest(store: ChannelStore, deps?: YoutubeDeps): Promi
     }
     const cur = job.ingestCursor;
 
+    // Per-batch video cap: if we've read the batch limit and there's still more
+    // to read, stop and wait for the user's approval.
+    const limit = job.settings.videoLimitPerBatch;
+    const ingestComplete =
+      cur.playlistDone && cur.pendingVideoIdBatches.length === 0 && cur.commentQueue.length === 0;
+    if (limit > 0 && job.videosThisBatch >= limit && !ingestComplete) {
+      result = { more: false, parked: false, batch: true };
+      return;
+    }
+
     try {
       // Phase A: page the uploads playlist.
       if (!cur.playlistDone) {
@@ -81,6 +94,7 @@ export async function stepIngest(store: ChannelStore, deps?: YoutubeDeps): Promi
             commentsFetched: false,
           });
           job.stats.videos += 1;
+          job.videosThisBatch += 1;
           if (job.settings.fetchComments) cur.commentQueue.push(v.videoId);
         }
         return;
@@ -121,10 +135,12 @@ export async function stepIngest(store: ChannelStore, deps?: YoutubeDeps): Promi
   return result;
 }
 
-export async function runIngest(store: ChannelStore, deps?: YoutubeDeps): Promise<void> {
+export async function runIngest(store: ChannelStore, deps?: YoutubeDeps): Promise<IngestStatus> {
   await beginIngest(store, deps);
   for (;;) {
-    const { more, parked } = await stepIngest(store, deps);
-    if (parked || !more) break;
+    const { more, parked, batch } = await stepIngest(store, deps);
+    if (parked) return "parked";
+    if (batch) return "batch";
+    if (!more) return "complete";
   }
 }

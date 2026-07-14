@@ -12,10 +12,12 @@ const dead = "https://www.amazon.com/dp/B0DEAD00CC";
 const oos = "https://www.amazon.com/dp/B0OOS000DD";
 
 const job = {
-  phase: "done", checkQueue: [], consecutiveBlocks: 0,
+  phase: "parked", checkQueue: ["B0DEAD00CC", "B0OOS000DD", "x3", "x4", "x5"], consecutiveBlocks: 0,
+  videosThisBatch: 0, checksThisBatch: 500, awaitingApproval: true, gate: "check",
+  parkedReason: 'Checked 500 links this batch. 5 left — click "Approve next batch" to continue.',
   channelId: "UC_main", channelTitle: "ratnesh pawar", uploadsPlaylistId: "UU",
-  settings: { ownerTags: ["mychannel-20"], fetchComments: true, paceMinMs: 8000, paceMaxMs: 20000, marketplaces: ["amazon.com"], tabsOnly: false },
-  stats: { videos: 22, links: 4, checked: 4, byStatus: { ok: 1, tag_missing_or_wrong: 1, redirected_asin: 0, unavailable: 1, delisted: 1, blocked: 0 } },
+  settings: { ownerTags: ["mychannel-20"], fetchComments: true, paceMinMs: 8000, paceMaxMs: 20000, marketplaces: ["amazon.com"], tabsOnly: false, videoLimitPerBatch: 500, checkLimitPerBatch: 500 },
+  stats: { videos: 22, links: 6, checked: 2, byStatus: { ok: 1, tag_missing_or_wrong: 1, redirected_asin: 0, unavailable: 0, delisted: 0, blocked: 0 } },
   commentAccessNote: "Comment scanning isn't available with read-only access on this account — your video descriptions were still scanned in full.",
   updatedAt: new Date().toISOString(),
 };

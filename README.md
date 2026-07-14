@@ -35,6 +35,14 @@ to the top and coloured loudest in the dashboard.
 
 ## Capabilities
 
+- **Instant tag audit (no Amazon).** Wrong/missing affiliate tags are found by
+  parsing the link text — zero Amazon contact, shown the moment videos are read.
+- **Batched, opt-in liveness checking.** Dead/removed/hijacked detection visits
+  Amazon pages, so it runs in user-approved batches: configurable
+  **videos-per-batch** and **links-per-batch** (default 500 each), an **Approve
+  next batch** gate, a live **ETA**, and a **Stop & show results** button. Built
+  for large channels (e.g. 7,000 videos) without hammering Amazon.
+
 - **Multi-channel.** Sign in via `launchWebAuthFlow` (Google's account + brand-
   channel picker), so it handles brand accounts and separate Google accounts.
   Each channel keeps its own audit data; switch with the top-bar dropdown.

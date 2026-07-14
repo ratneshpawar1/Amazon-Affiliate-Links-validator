@@ -34,6 +34,7 @@ export interface CheckerDeps {
 export interface ProcessResult {
   done: boolean; // whole queue finished
   parked: boolean; // parked on consecutive blocks
+  batchPaused?: boolean; // hit the per-batch check cap; awaiting approval
   processedAsin?: string;
 }
 
@@ -220,10 +221,12 @@ export async function processNextCheck(
   await store.mutateJob((j) => {
     j.checkQueue = j.checkQueue.filter((a) => a !== asin);
     j.stats.checked += 1;
+    j.checksThisBatch += 1;
     j.stats.byStatus[result.status] += 1;
     if (result.status === "blocked") j.consecutiveBlocks += 1;
     else j.consecutiveBlocks = 0;
 
+    const limit = j.settings.checkLimitPerBatch;
     if (j.consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS) {
       j.phase = "parked";
       j.parkedUntil = new Date(now() + BLOCK_PARK_MS).toISOString();
@@ -233,6 +236,13 @@ export async function processNextCheck(
     } else if (j.checkQueue.length === 0) {
       j.phase = "done";
       out = { ...out, done: true };
+    } else if (limit > 0 && j.checksThisBatch >= limit) {
+      // Per-batch check cap reached — wait for the user to approve the next batch.
+      j.phase = "parked";
+      j.awaitingApproval = true;
+      j.gate = "check";
+      j.parkedReason = `Checked ${j.checksThisBatch} links this batch. ${j.checkQueue.length} left — click "Approve next batch" to continue.`;
+      out = { ...out, batchPaused: true };
     }
   });
 

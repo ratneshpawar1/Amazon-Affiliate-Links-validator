@@ -130,6 +130,14 @@ This gets the **Affiliate Link Auditor** running in your own Chrome. About
 bar) and pick another channel in the Google picker. Each channel keeps its own
 results; switch between them with the dropdown at the top.
 
+**Big channels & batching.** Before running, set **Videos per batch** and
+**Links checked per batch** (default 500 each; `0` = no limit). Tag problems
+appear instantly with **no Amazon contact**. Checking links for dead/removed
+products visits Amazon, so it runs in batches: after each batch it pauses with
+an **Approve next batch** button and a time estimate, and you can **Stop & show
+results** at any point to keep everything found so far. This keeps Amazon
+traffic gentle on a 7,000-video channel and puts you in control.
+
 ---
 
 ## Step 6 — (Optional) AI replacement suggestions
